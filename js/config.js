@@ -1,5 +1,5 @@
 window.ISPV = {};
-window.ISPV.network = XPChain.networks.xpchain;//`xpchain` for mainnet, `testnet` for testnet
+window.ISPV.network = XPChain.networks.testnet;//`xpchain` for mainnet, `testnet` for testnet
 window.ISPV.fee = 0.1000;//XPC (fixed or per kB fee);
 window.ISPV.feetype = "per";//per,fix,auto(disabled now)
 window.ISPV.dust = 0.0546;//XPC, less than it is dust!
