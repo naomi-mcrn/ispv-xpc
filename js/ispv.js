@@ -1,6 +1,9 @@
+///<reference path="./jquery-1.12.4.min.js" />
+"use strict";
 $(document).ready(function () {
   var keyPair = null;
   var recentUTXO = [];
+  var mode = "simple";
 
   function r(s) {
     result.val(s);
@@ -11,6 +14,23 @@ $(document).ready(function () {
       o.prop("disabled", false);
     } else {
       o.prop("disabled", true);
+    }
+  }
+
+  function change_mode(){
+    switch (mode) {
+      case "simple":
+        xpc_infee_label.removeClass("hide");
+        xpc_infee.removeClass("hide");
+        xpc_count_row.addClass("hide");
+        xpc_amount_title.text("amount(XPC)");
+        break;
+      case "splitter":
+        xpc_infee_label.addClass("hide");
+        xpc_infee.addClass("hide");
+        xpc_count_row.removeClass("hide");
+        xpc_amount_title.text("each amount(XPC)");
+        break;
     }
   }
 
@@ -42,6 +62,7 @@ $(document).ready(function () {
   var btn_dumpkey = $("#btn_dumpkey");
   var btn_genkey = $("#btn_genkey");
   var btn_sendtx = $("#btn_sendtx");
+  var rdo_modes = $("input[name=mode]");
   var result = $("#result");
   var insight_api_url = $("#insight_api_url");
   var xpc_addr = $("#xpc_addr");
@@ -49,7 +70,11 @@ $(document).ready(function () {
   var xpc_utxo = $("#xpc_utxo");
   var xpc_to = $("#xpc_to");
   var xpc_infee = $("#xpc_infee");
+  var xpc_infee_label = $("#xpc_infee_label");
   var xpc_amount = $("#xpc_amount");
+  var xpc_amount_title = $("#xpc_amount_title");
+  var xpc_count = $("#xpc_count");
+  var xpc_count_row = $("#xpc_count_row");
   var extra_data = $("#extra_data");
   var strg = window.localStorage;
   var strg_key = "xpc_ispv";
@@ -57,25 +82,36 @@ $(document).ready(function () {
   var strg_data_obj = null;
   var strg_data_ver = 1;
 
-
-  var VERSION_STR = "0.1.1 dev";
+  var VERSION_STR = "0.1.1";
   var network_name = "mainnet";
   if(window.ISPV.network === XPChain.networks.testnet){
     network_name = "testnet";
     VERSION_STR += "(testnet2)";
-    if (window.ISPV.defaults){
-      if (window.ISPV.defaults.to){
-        xpc_to.val(window.ISPV.defaults.to);
-      }
-      if (window.ISPV.defaults.amount){
-        xpc_amount.val(window.ISPV.defaults.amount);
-      }
-    }
   }
   version_label.text(VERSION_STR);
   insight_link.attr("href",window.ISPV.insight_urls[network_name]);
   insight_api_url.val(window.ISPV.insight_api_urls[network_name]);
-
+  //default setting
+  if (window.ISPV.defaults && window.ISPV.defaults[network_name]){
+    if (window.ISPV.defaults[network_name].to){
+      xpc_to.val(window.ISPV.defaults[network_name].to);
+    }
+    if (window.ISPV.defaults[network_name].amount){
+      xpc_amount.val(window.ISPV.defaults[network_name].amount);
+    }
+    if (window.ISPV.defaults[network_name].mode){
+      mode = window.ISPV.defaults[network_name].mode;
+    }
+    if (window.ISPV.defaults[network_name].count >= 1){
+      xpc_count.val(window.ISPV.defaults[network_name].count);
+    }
+    if (window.ISPV.defaults[network_name].infee === true){
+      xpc_infee.prop("checked",true).attr("checked","checked");
+    }
+  }
+  rdo_modes.prop("checked",false).removeAttr("checked");
+  $("#mode_" + mode).prop("checked",true).attr("checked","checked");
+  change_mode();
 
   b(btn_delkey, false);
   b(btn_sendtx, false);
@@ -92,7 +128,6 @@ $(document).ready(function () {
   if (strg_data_obj === null || strg_data_obj.version < strg_data_ver) {
     b(btn_loadkey, false);
   }
-
 
   var privkey_hash = window.location.hash.substr(1);
   if ($.trim(privkey_hash) !== "") {
@@ -243,7 +278,6 @@ $(document).ready(function () {
     }
   });
 
-
   btn_sendtx.click(function () {
     var size = 1000;//1kB
     var fee = 0.1;//XPC
@@ -251,7 +285,9 @@ $(document).ready(function () {
     var ajaxed = false;
     b(btn_sendtx, false);
     try {
+      var count = parseInt(xpc_count.val());
       var amount_send = parseFloat(xpc_amount.val());
+      var whole_amount;
       var toaddr = $.trim(xpc_to.val());
       if (isNaN(amount_send) || !isFinite(amount_send) || amount_send < window.ISPV.dust) {
         alert("amount is invalid or dust.");
@@ -259,6 +295,7 @@ $(document).ready(function () {
       }
       amount_send = Math.floor(amount_send * 10000) / 10000;
       xpc_amount.val(amount_send);
+      whole_amount = amount_send * count;
 
       if (toaddr == "") {
         alert("send to address is empty");
@@ -296,11 +333,6 @@ $(document).ready(function () {
           case "per":
             fee = Math.floor((window.ISPV.fee * size) * 10.0) / 10000.0;
             feemsg = " [" + window.ISPV.fee + "/kB]";
-            if (!xpc_infee.prop("checked")) {
-              feemsg += " total " + (fee + amount_send);
-            } else {
-              feemsg += " included";
-            }
             //console.log("fee calculated: " + size + "byte, fee=" + fee);
             break;
           case "fix":
@@ -309,20 +341,17 @@ $(document).ready(function () {
           default:
             throw new Error("bad fee type!" + window.ISPV.feetype);
         }
-        var tmsend = amount_send;
-        if (xpc_infee.prop("checked")) {
-          tmsend = amount_send - fee;
-        }
-        if (tmsend > target_utxo.amount) {
-          alert("sending amount is larger than UTXO's one: " + tmsend + ">" + target_utxo.amount);
+        var tmamnt = whole_amount + fee; //tmsend must be equal or less than UTXO amount.
+        if (tmamnt > target_utxo.amount) {
+          alert("sending whole amount is larger than UTXO's one: " + tmamnt + ">" + target_utxo.amount);
           return false;
         }
-        var change = target_utxo.amount - (tmsend + fee);
+        var change = target_utxo.amount - tmamnt;
         //console.log("send=" + tmsend + ", fee=" + fee + ", charge=" + change);
         if (change !== 0 && change < window.ISPV.dust) {
           if (window.ISPV.feetype !== "per" || actual_size > 0) {
             if (change < 0) {
-              alert("insufficiant UTXO amount: " + target_utxo.amount + " < " + (tmsend + fee));
+              alert("insufficiant UTXO amount: " + target_utxo.amount + " < " + (tmamnt + fee));
             } else if (change > 0 && change < window.ISPV.dust) {
               alert("change is too low!: " + change);
             }
@@ -330,18 +359,18 @@ $(document).ready(function () {
           } else {
             //set temp fee for recalculation...?
             fee = 0.0001;//1 mocha
-            tmsend = target_utxo.amount - fee;
-            if (tmsend > amount_send) {
-              fee = tmsend - amount_send;
-              tmsend = amount_send;
-            }
             change = 0;
           }
         }
 
         var txb = new XPChain.TransactionBuilder(window.ISPV.network);
         var txin0 = txb.addInput(target_utxo.txid, target_utxo.vout, null, mywpkh.output);
-        var txout0 = txb.addOutput(toaddr, xpc_to_mocha(tmsend));
+        var txouts = [];
+        var txout;
+        for (let i = 0; i < count; i++) {
+          txout = txb.addOutput(toaddr, xpc_to_mocha(amount_send));
+          txouts.push(txout);
+        }
         var exmsg = "";
         if ($.trim(extra_data.val()) !== "") {
           var data = XPChain.lib.Buffer.from(extra_data.val(), 'utf8');
@@ -363,8 +392,8 @@ $(document).ready(function () {
       }
 
       var tx = built_tx.toHex();
-      if (confirm("send \n\n" + amount_send + " XPC (with " + fee + " XPC fee" + feemsg + ")" + exmsg + "\n\nto\n\n" + toaddr + "\n\nproceed ok?") == false) {
-        return false;
+      if (confirm("send \n\n" + whole_amount + " XPC <@" + amount_send + " XPC * " + count + "> (with " + fee + " XPC fee" + feemsg + ")" + exmsg + "\n\nto\n\n" + toaddr + "\n\nproceed ok?") == false) {
+        return false; 
       }
       //window.ISPV.tx = built_tx; 
       //r("DEBUG: \n" + tx);
@@ -389,4 +418,9 @@ $(document).ready(function () {
       if (!ajaxed) { b(btn_sendtx, true); }
     }
   });
+
+  rdo_modes.change(function (){
+    mode = $(this).val();
+    change_mode();
+  })
 });
