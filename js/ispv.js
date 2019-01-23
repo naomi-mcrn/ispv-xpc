@@ -59,7 +59,7 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
 
-  var VERSION_STR = "0.1.1 dev-txsplit";
+  var VERSION_STR = "0.2.0 dev-txsplit";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
