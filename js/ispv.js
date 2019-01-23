@@ -364,7 +364,7 @@ $(document).ready(function () {
         var txin;
         for (let i = 0; i < target_utxos.length; i++) {
           if (!target_utxos[i].confirmations){
-            alert("UTXO #" + target_utxo_indices[i] + ": confirmations info missing. may be Coinbase Tx.");
+            alert("UTXO #" + target_utxo_indices[i] + ": has no confirmations. may be orphaned coinbase Tx.");
             return false;
           }else if(target_utxos[i].confirmations < window.ISPV.min_conf){
             alert("UTXO #" + target_utxo_indices[i] + ": confirmatioins less than minimum (" + window.ISPV.min_conf + ")");
