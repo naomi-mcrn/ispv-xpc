@@ -58,8 +58,8 @@ $(document).ready(function () {
   var strg_data_obj = null;
   var strg_data_ver = 1;
 
-
-  var VERSION_STR = "0.2.0 dev-txsplit";
+  var RETRY_LOOP = 10;
+  var VERSION_STR = "0.2.2 dev-txsplit";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
@@ -322,6 +322,7 @@ $(document).ready(function () {
       var built_tx = null;
       var actual_size = -1;
 
+      var rl_remain = RETRY_LOOP;
       while (true) {
         switch (window.ISPV.feetype) {
           case "per":
@@ -341,6 +342,7 @@ $(document).ready(function () {
           return false;
         }
         var change = target_utxo_amount_sum - tmamnt;
+        change = Math.ceil(change * 10000) / 10000;//don't use xpc_to_mocha(change) / 10000;
         //console.log("send=" + whole_amount + ", fee=" + fee + ", charge=" + change);
         if (change !== 0 && change < window.ISPV.dust) {
           if (window.ISPV.feetype !== "per" || actual_size > 0) {
@@ -395,6 +397,11 @@ $(document).ready(function () {
         actual_size = built_tx.virtualSize();
         if (window.ISPV.feetype === "per" && size !== actual_size) {
           size = actual_size;
+          rl_remain -= 1;
+          if (rl_remain < 0){
+            alert("can't calculate relative fee. set ISPV.feetype to 'fix' and adjust ISPV.fee .");
+            return false;
+          }
         } else {
           break;
         }
