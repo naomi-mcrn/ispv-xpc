@@ -61,20 +61,20 @@ $(document).ready(function () {
 
   var VERSION_STR = "0.1.1 dev-txsplit";
   var network_name = "mainnet";
-  if(window.ISPV.network === XPChain.networks.testnet){
+  if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
     VERSION_STR += "(testnet2)";
-    if (window.ISPV.defaults){
-      if (window.ISPV.defaults.to){
+    if (window.ISPV.defaults) {
+      if (window.ISPV.defaults.to) {
         xpc_to.val(window.ISPV.defaults.to);
       }
-      if (window.ISPV.defaults.amount){
+      if (window.ISPV.defaults.amount) {
         xpc_amount.val(window.ISPV.defaults.amount);
       }
     }
   }
   version_label.text(VERSION_STR);
-  insight_link.attr("href",window.ISPV.insight_urls[network_name]);
+  insight_link.attr("href", window.ISPV.insight_urls[network_name]);
   insight_api_url.val(window.ISPV.insight_api_urls[network_name]);
 
 
@@ -271,22 +271,49 @@ $(document).ready(function () {
 
       var utxo_str = xpc_utxo.val();
       var utxo_idx = parseInt(utxo_str);
-      var target_utxo = null;
-      if (isNaN(utxo_idx)) {
-        //JSON
-        try {
-          target_utxo = JSON.parse(utxo_str);
-        } catch (e) {
-          alert("UTXO is neither index nor valid JSON");
-          return false;
+      var utxo_arr = utxo_str.split(",");
+      var tutxo = null;
+      var target_utxos = [];
+      var target_utxo_indices = [];
+      var target_utxo_amount_sum = 0;
+      if (utxo_arr.length > 1) {
+        //CSV(multiple)
+        for (let i = 0; i < utxo_arr.length; i++) {
+          utxo_idx = parseInt(utxo_arr[i]);
+          if (isNaN(utxo_idx)){
+            alert("Bad UTXO index at " + i + ".");
+            return false;
+          }
+          if (utxo_idx < 0 || utxo_idx >= recentUTXO.length) {
+            alert("UTXO index out of range.");
+            return false;
+          }
+          target_utxos.push(recentUTXO[utxo_idx]);
+          target_utxo_indices.push(utxo_idx);
+          target_utxo_amount_sum += recentUTXO[utxo_idx].amount;
         }
       } else {
-        //index
-        if (utxo_idx < 0 || utxo_idx >= recentUTXO.length) {
-          alert("UTXO index out of range.");
-          return false;
+        if (isNaN(utxo_idx)) {
+          //JSON
+          try {
+            tutxo = JSON.parse(utxo_str);
+            target_utxos.push(tutxo);
+            target_utxo_indices.push(0);
+            target_utxo_amount_sum += tutxo.amount;
+          } catch (e) {
+            alert("UTXO is neither index nor valid JSON");
+            return false;
+          }
+        } else {
+          //index
+          if (utxo_idx < 0 || utxo_idx >= recentUTXO.length) {
+            alert("UTXO index out of range.");
+            return false;
+          }
+          target_utxos.push(recentUTXO[utxo_idx]);
+          target_utxo_indices.push(utxo_idx);
+          target_utxo_amount_sum += recentUTXO[utxo_idx].amount;
         }
-        target_utxo = recentUTXO[utxo_idx];
       }
 
       var mywpkh = XPChain.payments.p2wpkh({
@@ -309,16 +336,16 @@ $(document).ready(function () {
             throw new Error("bad fee type!" + window.ISPV.feetype);
         }
         var tmamnt = whole_amount + fee; //tmsend must be equal or less than UTXO amount.
-        if (tmamnt > target_utxo.amount) {
-          alert("sending whole amount is larger than UTXO's one: " + tmamnt + ">" + target_utxo.amount);
+        if (tmamnt > target_utxo_amount_sum) {
+          alert("sending whole amount is larger than UTXO(s) amount: " + tmamnt + ">" + target_utxo_amount_sum);
           return false;
         }
-        var change = target_utxo.amount - tmamnt;
-        //console.log("send=" + tmsend + ", fee=" + fee + ", charge=" + change);
+        var change = target_utxo_amount_sum - tmamnt;
+        //console.log("send=" + whole_amount + ", fee=" + fee + ", charge=" + change);
         if (change !== 0 && change < window.ISPV.dust) {
           if (window.ISPV.feetype !== "per" || actual_size > 0) {
             if (change < 0) {
-              alert("insufficiant UTXO amount: " + target_utxo.amount + " < " + (tmamnt + fee));
+              alert("insufficiant UTXO(s) amount: " + target_utxo_amount_sum + " < " + (tmamnt + fee));
             } else if (change > 0 && change < window.ISPV.dust) {
               alert("change is too low!: " + change);
             }
@@ -331,9 +358,22 @@ $(document).ready(function () {
         }
 
         var txb = new XPChain.TransactionBuilder(window.ISPV.network);
-        var txin0 = txb.addInput(target_utxo.txid, target_utxo.vout, null, mywpkh.output);
         var txouts = [];
         var txout;
+        var txins = [];
+        var txin;
+        for (let i = 0; i < target_utxos.length; i++) {
+          if (!target_utxos[i].confirmations){
+            alert("UTXO #" + target_utxo_indices[i] + ": confirmations info missing. may be Coinbase Tx.");
+            return false;
+          }else if(target_utxos[i].confirmations < window.ISPV.min_conf){
+            alert("UTXO #" + target_utxo_indices[i] + ": confirmatioins less than minimum (" + window.ISPV.min_conf + ")");
+            return false;
+          }
+          txin = txb.addInput(target_utxos[i].txid, target_utxos[i].vout, null, mywpkh.output);
+          txins.push(txin);
+          console.log(txin);
+        }
         for (let i = 0; i < count; i++) {
           txout = txb.addOutput(toaddr, xpc_to_mocha(amount_send));
           txouts.push(txout);
@@ -348,7 +388,9 @@ $(document).ready(function () {
         if (change > 0) {
           var txout1 = txb.addOutput(mywpkh.address, xpc_to_mocha(change));
         }
-        txb.sign(txin0, keyPair, null, null, xpc_to_mocha(target_utxo.amount));
+        for (let i = 0; i < target_utxos.length; i++) {
+          txb.sign(txins[i], keyPair, null, null, xpc_to_mocha(target_utxos[i].amount));
+        }
         built_tx = txb.build();
         actual_size = built_tx.virtualSize();
         if (window.ISPV.feetype === "per" && size !== actual_size) {
@@ -360,7 +402,7 @@ $(document).ready(function () {
 
       var tx = built_tx.toHex();
       if (confirm("send \n\n" + whole_amount + " XPC <@" + amount_send + " XPC * " + count + "> (with " + fee + " XPC fee" + feemsg + ")" + exmsg + "\n\nto\n\n" + toaddr + "\n\nproceed ok?") == false) {
-        return false; 
+        return false;
       }
       //window.ISPV.tx = built_tx; 
       //r("DEBUG: \n" + tx);
