@@ -59,7 +59,7 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
   var RETRY_LOOP = 10;
-  var VERSION_STR = "0.2.2 dev-txsplit";
+  var VERSION_STR = "0.2.3 dev-txsplit";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
@@ -374,7 +374,7 @@ $(document).ready(function () {
           }
           txin = txb.addInput(target_utxos[i].txid, target_utxos[i].vout, null, mywpkh.output);
           txins.push(txin);
-          console.log(txin);
+          //console.log(txin);
         }
         for (let i = 0; i < count; i++) {
           txout = txb.addOutput(toaddr, xpc_to_mocha(amount_send));
@@ -396,6 +396,9 @@ $(document).ready(function () {
         built_tx = txb.build();
         actual_size = built_tx.virtualSize();
         if (window.ISPV.feetype === "per" && size !== actual_size) {
+          if (actual_size + 1 === size){
+            break;//1 mocha expensive...?
+          }
           size = actual_size;
           rl_remain -= 1;
           if (rl_remain < 0){
