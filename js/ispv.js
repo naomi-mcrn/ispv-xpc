@@ -59,7 +59,7 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
   var RETRY_LOOP = 10;
-  var VERSION_STR = "0.2.3 dev-txsplit";
+  var VERSION_STR = "0.2.4 dev-txsplit";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
@@ -342,7 +342,7 @@ $(document).ready(function () {
           return false;
         }
         var change = target_utxo_amount_sum - tmamnt;
-        change = Math.ceil(change * 10000) / 10000;//don't use xpc_to_mocha(change) / 10000;
+        change = Math.round(change * 10000) / 10000;//don't use xpc_to_mocha(change) / 10000;
         //console.log("send=" + whole_amount + ", fee=" + fee + ", charge=" + change);
         if (change !== 0 && change < window.ISPV.dust) {
           if (window.ISPV.feetype !== "per" || actual_size > 0) {
