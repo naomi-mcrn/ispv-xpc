@@ -59,7 +59,7 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
   var RETRY_LOOP = 10;
-  var VERSION_STR = "0.2.4 dev-txsplit";
+  var VERSION_STR = "0.2.5 dev-txsplit";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
@@ -136,8 +136,10 @@ $(document).ready(function () {
         var i;
         var res = "";
         for (i = 0; i < json.length; i++) {
-          if (res !== "") { res += "\n"; }
-          res += "UTXO #" + i + "\n" + JSON.stringify(json[i]) + "\n";
+          if (json[i].confirmations >= window.ISPV.min_conf){
+            if (res !== "") { res += "\n"; }
+            res += "UTXO #" + i + "\n" + JSON.stringify(json[i]) + "\n";
+          }
         }
         r(res);
         recentUTXO = json;
@@ -231,6 +233,8 @@ $(document).ready(function () {
     }
   });
   btn_genkey.click(function () {
+    alert("generate new key is disabled on TX Splitter.");
+    /*
     try {
       if (keyPair !== null) {
         if (!confirm("key is already loaded. discard it?")) {
@@ -242,6 +246,7 @@ $(document).ready(function () {
     } catch (e) {
       alert(e.toString());
     }
+    */
   });
 
 
