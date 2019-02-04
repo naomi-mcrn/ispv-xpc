@@ -35,7 +35,7 @@ $(document).ready(function () {
   }
 
   function xpc_to_mocha(v) {
-    return Math.floor(v * 10000);
+    return Math.round(v * 10000);
   }
 
   var key_loaded = function () {
@@ -83,7 +83,7 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
   var RETRY_LOOP = 10;
-  var VERSION_STR = "0.2.5 dev-integration";
+  var VERSION_STR = "0.3.0 alpha";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
@@ -135,11 +135,6 @@ $(document).ready(function () {
     try {
       keyPair = XPChain.ECPair.fromWIF(
         privkey_hash, window.ISPV.network);
-      /*
-      xpc_addr.val(XPChain.payments.p2wpkh({ pubkey: keyPair.publicKey, network: window.ISPV.network }).address);
-      b(btn_delkey,true);
-      b(btn_sendtx,true);
-      */
       key_loaded();
       alert("private key imported from URL fragment!(experimental)");
     } catch (e) {
@@ -262,14 +257,14 @@ $(document).ready(function () {
         throw new Error("key is empty!");
       }
       prompt("copy private key", keyPair.toWIF());
-      //xpc_priv.val(keyPair.toWIF());
     } catch (e) {
       alert(e.toString());
     }
   });
   btn_genkey.click(function () {
-    alert("generate new key is disabled on TX Splitter.");
-    /*
+    if (!confirm("currently, generate new key is EXPERIMETAL and DANGEROUS!! (weak randomness). are you ok?")){
+      return false;
+    }
     try {
       if (keyPair !== null) {
         if (!confirm("key is already loaded. discard it?")) {
@@ -281,7 +276,6 @@ $(document).ready(function () {
     } catch (e) {
       alert(e.toString());
     }
-    */
   });
 
   btn_sendtx.click(function () {
@@ -292,6 +286,9 @@ $(document).ready(function () {
     b(btn_sendtx, false);
     try {
       var count = parseInt(xpc_count.val());
+      if (mode === "simple"){
+        count = 1;
+      }
       var amount_send = parseFloat(xpc_amount.val());
       var whole_amount;
       var toaddr = $.trim(xpc_to.val());
@@ -299,7 +296,7 @@ $(document).ready(function () {
         alert("amount is invalid or dust.");
         return false;
       }
-      amount_send = Math.floor(amount_send * 10000) / 10000;
+      amount_send = xpc_to_mocha(amount_send) / 10000;
       xpc_amount.val(amount_send);
       whole_amount = amount_send * count;
 
@@ -365,9 +362,15 @@ $(document).ready(function () {
       while (true) {
         switch (window.ISPV.feetype) {
           case "per":
-            fee = Math.floor((window.ISPV.fee * size) * 10.0) / 10000.0;
+            fee = Math.round((window.ISPV.fee * size) * 10.0) / 10000.0;
             feemsg = " [" + window.ISPV.fee + "/kB]";
-            //console.log("fee calculated: " + size + "byte, fee=" + fee);
+            if (mode === "simple"){
+              if (!xpc_infee.prop("checked")) {
+                feemsg += " total " + (fee + amount_send);
+              } else {
+                feemsg += " included";
+              }
+            }
             break;
           case "fix":
             fee = window.ISPV.fee;
@@ -375,18 +378,35 @@ $(document).ready(function () {
           default:
             throw new Error("bad fee type!" + window.ISPV.feetype);
         }
-        var tmamnt = whole_amount + fee; //tmsend must be equal or less than UTXO amount.
+        var tmamnt = 0;//total amount (include fee)
+        var tmsend = 0;//each send amount
+        switch (mode) {
+          case "simple":
+            if (xpc_infee.prop("checked")) {
+              tmsend = amount_send - fee;
+              tmamnt = amount_send;
+            }else{
+              tmsend = amount_send;
+              tmamnt = amount_send + fee;
+            }
+            break;       
+          case "splitter":
+            tmsend = amount_send;
+            tmamnt = whole_amount + fee; //tmamnt must be equal or less than UTXO amount.
+            break;
+        }
+        /*
         if (tmamnt > target_utxo_amount_sum) {
-          alert("sending whole amount is larger than UTXO(s) amount: " + tmamnt + ">" + target_utxo_amount_sum);
+          alert("insufficiant UTXO(s) amount: " + target_utxo_amount_sum + " < " + tmamnt);
           return false;
         }
+        */
         var change = target_utxo_amount_sum - tmamnt;
-        change = Math.round(change * 10000) / 10000;//don't use xpc_to_mocha(change) / 10000;
-        //console.log("send=" + whole_amount + ", fee=" + fee + ", charge=" + change);
+        change = xpc_to_mocha(change) / 10000;
         if (change !== 0 && change < window.ISPV.dust) {
           if (window.ISPV.feetype !== "per" || actual_size > 0) {
             if (change < 0) {
-              alert("insufficiant UTXO(s) amount: " + target_utxo_amount_sum + " < " + (tmamnt + fee));
+              alert("insufficiant UTXO(s) amount: " + target_utxo_amount_sum + " < " + tmamnt);
             } else if (change > 0 && change < window.ISPV.dust) {
               alert("change is too low!: " + change);
             }
@@ -394,6 +414,13 @@ $(document).ready(function () {
           } else {
             //set temp fee for recalculation...?
             fee = 0.0001;//1 mocha
+            if (mode === "simple"){
+              tmsend = target_utxo_amount_sum - fee;
+              if (tmsend > amount_send) {
+                fee += (tmsend - amount_send);
+                tmsend = amount_send;
+              }
+            }
             change = 0;
           }
         }
@@ -413,10 +440,9 @@ $(document).ready(function () {
           }
           txin = txb.addInput(target_utxos[i].txid, target_utxos[i].vout, null, mywpkh.output);
           txins.push(txin);
-          //console.log(txin);
         }
         for (let i = 0; i < count; i++) {
-          txout = txb.addOutput(toaddr, xpc_to_mocha(amount_send));
+          txout = txb.addOutput(toaddr, xpc_to_mocha(tmsend));
           txouts.push(txout);
         }
         var exmsg = "";
@@ -450,12 +476,19 @@ $(document).ready(function () {
       }
 
       var tx = built_tx.toHex();
-      if (confirm("send \n\n" + whole_amount + " XPC <@" + amount_send + " XPC * " + count + "> (with " + fee + " XPC fee" + feemsg + ")" + exmsg + "\n\nto\n\n" + toaddr + "\n\nproceed ok?") == false) {
+      var sendmsg = "send \n\n" 
+      switch (mode) {
+        case "simple":
+          sendmsg += amount_send + " XPC";
+          break;
+        case "splitter":
+          sendmsg += whole_amount + " XPC <@" + amount_send + " XPC * " + count + "> ";
+          break;
+      }
+      sendmsg += "(with " + fee + " XPC fee" + feemsg + ")" + exmsg + "\n\nto\n\n" + toaddr + "\n\nproceed ok?"
+      if (confirm(sendmsg) == false) {
         return false;
       }
-      //window.ISPV.tx = built_tx; 
-      //r("DEBUG: \n" + tx);
-      //return false;
       if (!window.ISPV.dryrun) {
         $.ajax({
           type: 'POST',
