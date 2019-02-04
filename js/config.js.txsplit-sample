@@ -1,5 +1,5 @@
 window.ISPV = {};
-window.ISPV.network = XPChain.networks.testnet;//`xpchain` for mainnet, `testnet` for testnet
+window.ISPV.network = XPChain.networks.xpchain;//`xpchain` for mainnet, `testnet` for testnet
 window.ISPV.fee = 0.1000;//XPC (fixed or per kB fee);
 window.ISPV.feetype = "per";//per,fix,auto(disabled now)
 window.ISPV.dust = 0.0546;//XPC, less than it is dust!
@@ -19,11 +19,11 @@ window.ISPV.insight_api_urls = {
 //default value: to,amount,count,infee,mode
 window.ISPV.defaults = { 
     mainnet: {
-        to: "",
-        amount: 0,
-        count: 0,
-        infee: false,
-        mode: "simple"
+        to: "",//set your minting address if you want
+        amount: 0,//set default each amount if you want
+        count: 0,//set default count if you want
+        infee: false, //no effect on splitter mode
+        mode: "splitter" //set "splitter" to Tx splitter mode
     },
     testnet: {
         to: "txpc1qtje728k2xkcyexva2cr5t7624j8q6ar2snedxm",

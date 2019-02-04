@@ -62,10 +62,21 @@
                 <input type="text" id="xpc_to" value="" />
             </div>
             <div class="crow">
-                <span>amount(XPC)</span>
+            	<span>mode</span>
+                <input type="radio" name="mode" value="simple" id="mode_simple" checked="checked" />
+                <label for="mode_simple">Simple</label>
+                <input type="radio" name="mode" value="splitter" id="mode_splitter" />
+                <label for="mode_simple">Splitter</label>
+            </div>
+            <div class="crow">
+                <span id="xpc_amount_title">amount(XPC)</span>
                 <input type="text" id="xpc_amount" value="" />
-                <input type="checkbox" id="xpc_infee" />
-                <label for="xpc_infee">include fee</label>
+               <input type="checkbox" id="xpc_infee" />
+               <label for="xpc_infee" id="xpc_infee_label">include fee</label>                
+            </div>
+            <div class="crow hide" id="xpc_count_row">
+                <span>count</span>
+                <input type="text" id="xpc_count" value="1" />
             </div>
             <div class="crow">
                 <span>extra data(optional)</span>
