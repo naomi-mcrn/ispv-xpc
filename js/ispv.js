@@ -82,7 +82,8 @@ $(document).ready(function () {
   var strg_data_obj = null;
   var strg_data_ver = 1;
 
-  var VERSION_STR = "0.1.1";
+  var RETRY_LOOP = 10;
+  var VERSION_STR = "0.2.5 dev-integration";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
@@ -170,8 +171,10 @@ $(document).ready(function () {
         var i;
         var res = "";
         for (i = 0; i < json.length; i++) {
-          if (res !== "") { res += "\n"; }
-          res += "UTXO #" + i + "\n" + JSON.stringify(json[i]) + "\n";
+          if (json[i].confirmations >= window.ISPV.min_conf){
+            if (res !== "") { res += "\n"; }
+            res += "UTXO #" + i + "\n" + JSON.stringify(json[i]) + "\n";
+          }
         }
         r(res);
         recentUTXO = json;
@@ -265,6 +268,8 @@ $(document).ready(function () {
     }
   });
   btn_genkey.click(function () {
+    alert("generate new key is disabled on TX Splitter.");
+    /*
     try {
       if (keyPair !== null) {
         if (!confirm("key is already loaded. discard it?")) {
@@ -276,6 +281,7 @@ $(document).ready(function () {
     } catch (e) {
       alert(e.toString());
     }
+    */
   });
 
   btn_sendtx.click(function () {
@@ -355,6 +361,7 @@ $(document).ready(function () {
       var built_tx = null;
       var actual_size = -1;
 
+      var rl_remain = RETRY_LOOP;
       while (true) {
         switch (window.ISPV.feetype) {
           case "per":
@@ -374,6 +381,7 @@ $(document).ready(function () {
           return false;
         }
         var change = target_utxo_amount_sum - tmamnt;
+        change = Math.round(change * 10000) / 10000;//don't use xpc_to_mocha(change) / 10000;
         //console.log("send=" + whole_amount + ", fee=" + fee + ", charge=" + change);
         if (change !== 0 && change < window.ISPV.dust) {
           if (window.ISPV.feetype !== "per" || actual_size > 0) {
@@ -397,7 +405,7 @@ $(document).ready(function () {
         var txin;
         for (let i = 0; i < target_utxos.length; i++) {
           if (!target_utxos[i].confirmations){
-            alert("UTXO #" + target_utxo_indices[i] + ": confirmations info missing. may be Coinbase Tx.");
+            alert("UTXO #" + target_utxo_indices[i] + ": has no confirmations. may be orphaned coinbase Tx.");
             return false;
           }else if(target_utxos[i].confirmations < window.ISPV.min_conf){
             alert("UTXO #" + target_utxo_indices[i] + ": confirmatioins less than minimum (" + window.ISPV.min_conf + ")");
@@ -405,7 +413,7 @@ $(document).ready(function () {
           }
           txin = txb.addInput(target_utxos[i].txid, target_utxos[i].vout, null, mywpkh.output);
           txins.push(txin);
-          console.log(txin);
+          //console.log(txin);
         }
         for (let i = 0; i < count; i++) {
           txout = txb.addOutput(toaddr, xpc_to_mocha(amount_send));
@@ -427,7 +435,15 @@ $(document).ready(function () {
         built_tx = txb.build();
         actual_size = built_tx.virtualSize();
         if (window.ISPV.feetype === "per" && size !== actual_size) {
+          if (actual_size + 1 === size){
+            break;//1 mocha expensive...?
+          }
           size = actual_size;
+          rl_remain -= 1;
+          if (rl_remain < 0){
+            alert("can't calculate relative fee. set ISPV.feetype to 'fix' and adjust ISPV.fee .");
+            return false;
+          }
         } else {
           break;
         }

@@ -3,8 +3,8 @@ window.ISPV.network = XPChain.networks.testnet;//`xpchain` for mainnet, `testnet
 window.ISPV.fee = 0.1000;//XPC (fixed or per kB fee);
 window.ISPV.feetype = "per";//per,fix,auto(disabled now)
 window.ISPV.dust = 0.0546;//XPC, less than it is dust!
-window.ISPV.dryrun = true;//don't send really if true
-window.ISPV.min_conf = 6;//require confirmation equal or greater than this 
+window.ISPV.dryrun = false;//don't send really if true
+window.ISPV.min_conf = 1;//require confirmation equal or greater than this 
 
 //insight urls (auto switch)
 window.ISPV.insight_urls = {
