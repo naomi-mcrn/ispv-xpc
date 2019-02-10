@@ -90,7 +90,6 @@ $(document).ready(function () {
   var xpc_amount = $("#xpc_amount");
   var xpc_amount_title = $("#xpc_amount_title");
   var xpc_count = $("#xpc_count");
-  var xpc_count_row = $("#xpc_count_row");
   var extra_data = $("#extra_data");
   var strg = window.localStorage;
   var strg_key = "xpc_ispv";
@@ -99,7 +98,7 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
   var RETRY_LOOP = 10;
-  var VERSION_STR = "0.4.1 alpha";
+  var VERSION_STR = "0.4.2 alpha";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
@@ -534,6 +533,7 @@ $(document).ready(function () {
           case "splitter":
             tmsend = amount_send;
             tmamnt = whole_amount + fee; //tmamnt must be equal or less than UTXO amount.
+            break;
           case "justifier":
             tmsend = amount_send;
             tmamnt = fee;//subtract from supp. balance
