@@ -21,15 +21,34 @@
                 <span>address</span>
                 <input type="text" id="xpc_addr" value="" />
             </div>
+            <div class="crow u-mode u-mode-justifier">
+                <span>supp. address</span>
+                <input type="text" id="xpc_addr_supp" value="" />
+            </div>
+            <div class="crow">
+            	<span>mode</span>
+                <input type="radio" name="mode" value="simple" id="mode_simple" checked="checked" />
+                <label for="mode_simple">Simple</label>
+                <input type="radio" name="mode" value="splitter" id="mode_splitter" />
+                <label for="mode_splitter">Splitter</label>
+                <input type="radio" name="mode" value="justifier" id="mode_justifier" />
+                <label for="mode_justifier">Justifier</label>
+            </div>
             <button type="button" id="btn_utxo" class="cbtn">
                 <span>Get UTXO</span>
             </button>
             <textarea id="result"></textarea>
             <div class="crow">
                 <span>priv key WIF</span>
-                <input type="password" id="dummy" value="" />
-                <input type="password" id="dummy2" value="" />
+                <input type="password" id="dummy" class="dummy" value="" />
+                <input type="password" id="dummy2" class="dummy" value="" />
                 <input type="password" id="xpc_priv" value="" />
+            </div>
+            <div class="crow u-mode u-mode-justifier">
+                <span>supp. priv key WIF</span>
+                <input type="password" id="dummy3" class="dummy" value="" />
+                <input type="password" id="dummy4" class="dummy" value="" />
+                <input type="password" id="xpc_priv_sup" value="" />
             </div>
             <div class="cbtns">
                 <button type="button" id="btn_impkey" class="cbtn warn">
@@ -53,28 +72,21 @@
                     <span>Generate Key</span>
                 </button>
             </div>
-            <div class="crow">
+            <div class="crow u-mode u-mode-simple u-mode-splitter">
                 <span>input UTXO(index or JSON)</span>
                 <input type="text" id="xpc_utxo" value="" />
             </div>
-            <div class="crow">
+            <div class="crow u-mode u-mode-simple u-mode-splitter">
                 <span>send to</span>
                 <input type="text" id="xpc_to" value="" />
             </div>
             <div class="crow">
-            	<span>mode</span>
-                <input type="radio" name="mode" value="simple" id="mode_simple" checked="checked" />
-                <label for="mode_simple">Simple</label>
-                <input type="radio" name="mode" value="splitter" id="mode_splitter" />
-                <label for="mode_simple">Splitter</label>
-            </div>
-            <div class="crow">
                 <span id="xpc_amount_title">amount(XPC)</span>
                 <input type="text" id="xpc_amount" value="" />
-               <input type="checkbox" id="xpc_infee" />
-               <label for="xpc_infee" id="xpc_infee_label">include fee</label>                
+               <input type="checkbox" id="xpc_infee" class="u-mode u-mode-simple" />
+               <label for="xpc_infee" class="u-mode u-mode-simple nogrow">include fee</label>                
             </div>
-            <div class="crow hide" id="xpc_count_row">
+            <div class="crow u-mode u-mode-splitter">
                 <span>count</span>
                 <input type="text" id="xpc_count" value="1" />
             </div>

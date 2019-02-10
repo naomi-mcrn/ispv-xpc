@@ -2,11 +2,18 @@
 "use strict";
 $(document).ready(function () {
   var keyPair = null;
+  var suppKeyPair = null;
   var recentUTXO = [];
+  var suppUTXO = [];
+  var justifyAmnts = null;
   var mode = "simple";
 
-  function r(s) {
-    result.val(s);
+  function r(s,apnd) {
+    if (apnd === true){
+      result.val(result.val() + "\n" + s)
+    }else{
+      result.val(s);
+    }
   }
 
   function b(o, i) {
@@ -18,19 +25,24 @@ $(document).ready(function () {
   }
 
   function change_mode(){
+    $(".u-mode").addClass("hide");
+    $(".u-mode-" + mode).removeClass("hide");
     switch (mode) {
       case "simple":
-        xpc_infee_label.removeClass("hide");
-        xpc_infee.removeClass("hide");
-        xpc_count_row.addClass("hide");
+        btn_utxo.find("span").text("Get UTXO");
+        btn_sendtx.find("span").text("Send XPC!");
         xpc_amount_title.text("amount(XPC)");
         break;
-      case "splitter":
-        xpc_infee_label.addClass("hide");
-        xpc_infee.addClass("hide");
-        xpc_count_row.removeClass("hide");
+      case "simple":
+        btn_utxo.find("span").text("Get UTXO");
+        btn_sendtx.find("span").text("Split XPC!");
         xpc_amount_title.text("each amount(XPC)");
         break;
+      case "justifier":
+        btn_utxo.find("span").text("ready to justify");
+        btn_sendtx.find("span").text("Justify XPC!");
+        xpc_amount_title.text("justify amount(XPC)");
+        break;        
     }
   }
 
@@ -40,6 +52,9 @@ $(document).ready(function () {
 
   var key_loaded = function () {
     xpc_addr.val(XPChain.payments.p2wpkh({ pubkey: keyPair.publicKey, network: window.ISPV.network }).address);
+    if (mode === "justifier" && suppKeyPair !== null){
+      xpc_addr_supp.val(XPChain.payments.p2wpkh({ pubkey: suppKeyPair.publicKey, network: window.ISPV.network }).address);
+    }
     b(btn_delkey, true);
     b(btn_sendtx, true);
     b(btn_savekey, true);
@@ -66,11 +81,12 @@ $(document).ready(function () {
   var result = $("#result");
   var insight_api_url = $("#insight_api_url");
   var xpc_addr = $("#xpc_addr");
+  var xpc_addr_supp = $("#xpc_addr_supp");  
   var xpc_priv = $("#xpc_priv");
+  var xpc_priv_sup = $("#xpc_priv_sup");
   var xpc_utxo = $("#xpc_utxo");
   var xpc_to = $("#xpc_to");
   var xpc_infee = $("#xpc_infee");
-  var xpc_infee_label = $("#xpc_infee_label");
   var xpc_amount = $("#xpc_amount");
   var xpc_amount_title = $("#xpc_amount_title");
   var xpc_count = $("#xpc_count");
@@ -83,11 +99,12 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
   var RETRY_LOOP = 10;
-  var VERSION_STR = "0.3.0 alpha";
+  var VERSION_STR = "0.4.0 alpha";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
     VERSION_STR += "(testnet2)";
+    strg_key += "_testnet";
   }
   version_label.text(VERSION_STR);
   insight_link.attr("href", window.ISPV.insight_urls[network_name]);
@@ -145,8 +162,13 @@ $(document).ready(function () {
 
   btn_utxo.click(function () {
     var addr = $.trim(xpc_addr.val());
-    if (addr == "") {
+    var addr_supp = $.trim(xpc_addr_supp.val());
+    if (addr === "") {
       alert("address is empty!");
+      return false;
+    }
+    if (mode === "justifier" && addr_supp === ""){
+      alert("supp. address is empty!");
       return false;
     }
 
@@ -154,6 +176,8 @@ $(document).ready(function () {
     try {
       r("please wait...");
       recentUTXO = [];
+      xpc_utxo.val("");
+      justifyAmnts = null;
 
       $.ajax({
         type: 'GET',
@@ -165,17 +189,79 @@ $(document).ready(function () {
         }
         var i;
         var res = "";
+        var amnt_total = 0;
+        var amnt_nojust = 0;
+        var nojust_txidxs = [];
+        var justamnt = parseInt(xpc_amount.val());
+        if (isNaN(justamnt) || justamnt <= 0){
+          throw new Error("justify amount is invalid.");
+        }
         for (i = 0; i < json.length; i++) {
           if (json[i].confirmations >= window.ISPV.min_conf){
             if (res !== "") { res += "\n"; }
             res += "UTXO #" + i + "\n" + JSON.stringify(json[i]) + "\n";
+            if (mode === "justifier" && justamnt > 0){
+              if (json[i].amount % justamnt !== 0){
+                amnt_nojust += json[i].amount;
+                nojust_txidxs.push(i);
+              }
+              amnt_total += json[i].amount;
+            }
           }
         }
-        r(res);
+        if (mode !== "justifier"){
+          r(res);
+          xpc_utxo.val("0");
+        }else{
+          r("Total amount: " + amnt_total + "\nNot justified: " + amnt_nojust);
+          if (amnt_nojust < 1){
+            alert("All Txs are justified.");
+            return;
+          }
+          xpc_utxo.val(nojust_txidxs.join(","));
+        }
         recentUTXO = json;
-        xpc_utxo.val("0");
+
+
+        if (mode === "justifier"){
+          $.ajax({
+            type: 'GET',
+            url: insight_api_url.val() + 'addr/' + addr_supp + '/utxo',
+            dataType: 'json',
+          }).done(function (json_s) {
+            if (!Array.isArray(json_s)) {
+              throw "result not Array. insight version mismatch?";
+            }
+            var amnt_total_supp = 0;
+            var tsputxo = [];
+            for (i = 0; i < json_s.length; i++) {
+              if (json_s[i].confirmations >= window.ISPV.min_conf){
+                tsputxo.push(json_s[i]);
+                amnt_total_supp += json_s[i].amount;                
+              }
+            }
+            r("Supp. amount: " + amnt_total_supp, true);
+
+            var remm = amnt_nojust % justamnt;
+            if (remm + amnt_total_supp < justamnt){
+              alert("supp. amount insufficient.");
+              return;
+            }
+            amnt_total_supp = (remm + amnt_total_supp) - justamnt;//change amount(without fee);
+
+            justifyAmnts = {
+              supp: amnt_total_supp,
+              count: Math.ceil(amnt_nojust / justamnt)
+            }
+            
+            suppUTXO = tsputxo;    
+          }).fail(function (xhr, tstat, err) {
+            r("Get Supp. UTXO failed. " + tstat + ": " + err + " [" + xhr.responseText + "]",true);
+          });    
+        }
+
       }).fail(function (xhr, tstat, err) {
-        r("" + tstat + ": " + err + " [" + xhr.responseText + "]");
+        r("Get UTXO failed. " + tstat + ": " + err + " [" + xhr.responseText + "]");
       });
     } catch (e) {
       r("error: " + e);
@@ -193,14 +279,27 @@ $(document).ready(function () {
       keyPair = XPChain.ECPair.fromWIF(
         xpc_priv.val(), window.ISPV.network);
       key_loaded();
+      if (mode === "justifier" && $.trim(xpc_priv_sup.val()) !== ""){
+        try{
+          suppKeyPair = XPChain.ECPair.fromWIF(
+            xpc_priv_sup.val(), window.ISPV.network);
+          key_loaded();
+        }catch(e){
+          suppKeyPair = null;
+          alert("suppKey: " + e.toString());
+        }
+      }
     } catch (e) {
       keyPair = null;
+      suppKeyPair = null;
       alert(e.toString());
     }
     xpc_priv.val("");
+    xpc_priv_sup.val("");
   });
   btn_delkey.click(function () {
     keyPair = null;
+    suppKeyPair = null;
     key_unloaded();
   });
   btn_loadkey.click(function () {
@@ -217,26 +316,37 @@ $(document).ready(function () {
         case 1:
           var enc = strg_data_obj.encrypted;
           var key = strg_data_obj.key;
+          var skey = strg_data_obj.supp_key;
           var ei = strg_data_obj.enc_info;
-          if (!enc) {
-            keyPair = XPChain.ECPair.fromWIF(
-              key, window.ISPV.network);
-          } else {
-            var salt = CryptoJS.enc.Hex.parse(ei.salt);
-            var iv = CryptoJS.enc.Hex.parse(ei.iv);
-            var pass = prompt("input passphrase", "");
-            if (pass == null || pass == "") {
-              throw new Error("bad passphrase(empty)");
+          try{
+            if (!enc) {
+              keyPair = XPChain.ECPair.fromWIF(
+                key, window.ISPV.network);
+              if (mode === "justifier" && skey && $.trim(skey) !== ""){
+                suppKeyPair = XPChain.ECPair.fromWIF(
+                  skey, window.ISPV.network);
+              }
+            } else {
+              var salt = CryptoJS.enc.Hex.parse(ei.salt);
+              var iv = CryptoJS.enc.Hex.parse(ei.iv);
+              var pass = prompt("input passphrase", "");
+              if (pass == null || pass == "") {
+                throw new Error("bad passphrase(empty)");
+              }
+              //todo continue...
             }
-            //todo continue...
+            key_loaded();
+          }catch(e){
+            throw new Error("key load failure: " + e.toString());
           }
-          key_loaded();
           break;
         default:
           throw new Error("bad data version: " + strg_data_obj.version);
       }
     } catch (e) {
       keyPair = null;
+      suppKeyPair = null;
+      key_unloaded();
       alert(e.toString());
     }
   });
@@ -245,7 +355,11 @@ $(document).ready(function () {
       version: strg_data_ver,
       encrypted: false,
       key: keyPair.toWIF(),
+      supp_key: null,
       enc_info: { salt: null, iv: null }
+    }
+    if (mode === "justifier" && suppKeyPair !== null){
+      strg_data_obj.supp_key = suppKeyPair.toWIF();
     }
     strg_data_str = JSON.stringify(strg_data_obj);
     strg.setItem(strg_key, strg_data_str);
@@ -257,6 +371,9 @@ $(document).ready(function () {
         throw new Error("key is empty!");
       }
       prompt("copy private key", keyPair.toWIF());
+      if (mode === "justifier" && suppKeyPair !== null){
+        prompt("copy supp. private key", suppKeyPair.toWIF());
+      }
     } catch (e) {
       alert(e.toString());
     }
@@ -285,25 +402,43 @@ $(document).ready(function () {
     var ajaxed = false;
     b(btn_sendtx, false);
     try {
-      var count = parseInt(xpc_count.val());
-      if (mode === "simple"){
-        count = 1;
+      if (mode === "justifier" && justifyAmnts === null){
+        alert("Justifier not ready. get UTXO first.");
+        return false;
       }
+      var count = -1;
+      switch (mode) {
+        case "simple":
+          count = 1;
+          break;
+        case "splitter":
+          count = parseInt(xpc_count.val());
+          break;
+        case "justifier":
+          count = justifyAmnts.count;
+          break;
+      }
+
       var amount_send = parseFloat(xpc_amount.val());
       var whole_amount;
       var toaddr = $.trim(xpc_to.val());
+      if (mode === "justifier"){
+        toaddr = XPChain.payments.p2wpkh({ pubkey: keyPair.publicKey, network: window.ISPV.network }).address;
+      }
       if (isNaN(amount_send) || !isFinite(amount_send) || amount_send < window.ISPV.dust) {
         alert("amount is invalid or dust.");
         return false;
       }
-      amount_send = xpc_to_mocha(amount_send) / 10000;
-      xpc_amount.val(amount_send);
-      whole_amount = amount_send * count;
-
       if (toaddr == "") {
         alert("send to address is empty");
         return false;
       }
+
+      amount_send = xpc_to_mocha(amount_send) / 10000;
+      xpc_amount.val(amount_send);
+      whole_amount = amount_send * count;
+
+ 
 
       var utxo_str = xpc_utxo.val();
       var utxo_idx = parseInt(utxo_str);
@@ -355,6 +490,12 @@ $(document).ready(function () {
       var mywpkh = XPChain.payments.p2wpkh({
         pubkey: keyPair.publicKey, network: window.ISPV.network
       });
+      var mywpkh_s = null;
+      if (mode === "justifier"){
+        mywpkh_s = XPChain.payments.p2wpkh({
+          pubkey: suppKeyPair.publicKey, network: window.ISPV.network
+        });
+      }
       var built_tx = null;
       var actual_size = -1;
 
@@ -393,20 +534,22 @@ $(document).ready(function () {
           case "splitter":
             tmsend = amount_send;
             tmamnt = whole_amount + fee; //tmamnt must be equal or less than UTXO amount.
+          case "justifier":
+            tmsend = amount_send;
+            tmamnt = fee;//subtract from supp. balance
             break;
         }
-        /*
-        if (tmamnt > target_utxo_amount_sum) {
-          alert("insufficiant UTXO(s) amount: " + target_utxo_amount_sum + " < " + tmamnt);
-          return false;
-        }
-        */
-        var change = target_utxo_amount_sum - tmamnt;
+        var change;
+        if (mode !== "justifier"){
+          change = target_utxo_amount_sum - tmamnt;
+        }else{
+          change = justifyAmnts.supp - tmamnt;
+        }       
         change = xpc_to_mocha(change) / 10000;
         if (change !== 0 && change < window.ISPV.dust) {
           if (window.ISPV.feetype !== "per" || actual_size > 0) {
             if (change < 0) {
-              alert("insufficiant UTXO(s) amount: " + target_utxo_amount_sum + " < " + tmamnt);
+              alert("insufficient UTXO(s) amount: " + target_utxo_amount_sum + " < " + tmamnt);
             } else if (change > 0 && change < window.ISPV.dust) {
               alert("change is too low!: " + change);
             }
@@ -430,6 +573,8 @@ $(document).ready(function () {
         var txout;
         var txins = [];
         var txin;
+        var txins_s = [];
+        var txin_s;
         for (let i = 0; i < target_utxos.length; i++) {
           if (!target_utxos[i].confirmations){
             alert("UTXO #" + target_utxo_indices[i] + ": has no confirmations. may be orphaned coinbase Tx.");
@@ -440,6 +585,13 @@ $(document).ready(function () {
           }
           txin = txb.addInput(target_utxos[i].txid, target_utxos[i].vout, null, mywpkh.output);
           txins.push(txin);
+        }
+        if (mode === "justifier"){
+          //suppUTXO satisfied min_conf
+          for (let i = 0; i < suppUTXO.length; i++){
+            txin_s = txb.addInput(suppUTXO[i].txid, suppUTXO[i].vout, null, mywpkh_s.output);
+            txins_s.push(txin_s);
+          }
         }
         for (let i = 0; i < count; i++) {
           txout = txb.addOutput(toaddr, xpc_to_mocha(tmsend));
@@ -453,10 +605,20 @@ $(document).ready(function () {
           exmsg = " and extra data";
         }
         if (change > 0) {
-          var txout1 = txb.addOutput(mywpkh.address, xpc_to_mocha(change));
+          var txout1;
+          if (mode !== "justifier"){
+            txout1 = txb.addOutput(mywpkh.address, xpc_to_mocha(change));
+          }else{
+            txout1 = txb.addOutput(mywpkh_s.address, xpc_to_mocha(change));
+          }
         }
         for (let i = 0; i < target_utxos.length; i++) {
           txb.sign(txins[i], keyPair, null, null, xpc_to_mocha(target_utxos[i].amount));
+        }
+        if (mode === "justifier"){
+          for (let i = 0; i < suppUTXO.length; i++){
+            txb.sign(txins_s[i], suppKeyPair, null, null, xpc_to_mocha(suppUTXO[i].amount));
+          }
         }
         built_tx = txb.build();
         actual_size = built_tx.virtualSize();
