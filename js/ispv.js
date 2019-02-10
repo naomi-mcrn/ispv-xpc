@@ -33,7 +33,7 @@ $(document).ready(function () {
         btn_sendtx.find("span").text("Send XPC!");
         xpc_amount_title.text("amount(XPC)");
         break;
-      case "simple":
+      case "splitter":
         btn_utxo.find("span").text("Get UTXO");
         btn_sendtx.find("span").text("Split XPC!");
         xpc_amount_title.text("each amount(XPC)");
@@ -99,7 +99,7 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
   var RETRY_LOOP = 10;
-  var VERSION_STR = "0.4.0 alpha";
+  var VERSION_STR = "0.4.1 alpha";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
