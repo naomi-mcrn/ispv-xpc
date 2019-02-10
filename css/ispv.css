@@ -43,6 +43,9 @@ header {
     .crow label {
         flex-grow: 1;
     }
+    .crow label.nogrow {
+        flex-grow: 0;
+    }
 
     .crow input {
         flex-grow: 1;
@@ -106,6 +109,6 @@ em > b {
     visibility: hidden;
 }
 
-#dummy, #dummy2 {
+input.dummy {
     flex: 0 0 0;
 }
