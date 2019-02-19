@@ -98,7 +98,7 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
   var RETRY_LOOP = 10;
-  var VERSION_STR = "0.4.2 alpha";
+  var VERSION_STR = "0.4.3 alpha";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
@@ -192,14 +192,16 @@ $(document).ready(function () {
         var amnt_nojust = 0;
         var nojust_txidxs = [];
         var justamnt = parseInt(xpc_amount.val());
-        if (isNaN(justamnt) || justamnt <= 0){
-          throw new Error("justify amount is invalid.");
+        if (mode === "justifier"){
+          if (isNaN(justamnt) || justamnt <= 0){
+            throw new Error("justify amount is invalid.");
+          }
         }
         for (i = 0; i < json.length; i++) {
           if (json[i].confirmations >= window.ISPV.min_conf){
             if (res !== "") { res += "\n"; }
             res += "UTXO #" + i + "\n" + JSON.stringify(json[i]) + "\n";
-            if (mode === "justifier" && justamnt > 0){
+            if (mode === "justifier"){
               if (json[i].amount % justamnt !== 0){
                 amnt_nojust += json[i].amount;
                 nojust_txidxs.push(i);
