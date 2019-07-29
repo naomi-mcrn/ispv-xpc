@@ -8,6 +8,8 @@ $(document).ready(function () {
   var justifyAmnts = null;
   var mode = "simple";
 
+  var COINBASE_MIN_CONF = window.ISPV.coinbase_min_conf || 101;
+
   function r(s,apnd) {
     if (apnd === true){
       result.val(result.val() + "\n" + s)
@@ -98,7 +100,7 @@ $(document).ready(function () {
   var strg_data_ver = 1;
 
   var RETRY_LOOP = 10;
-  var VERSION_STR = "0.4.3 alpha";
+  var VERSION_STR = "0.4.4 alpha";
   var network_name = "mainnet";
   if (window.ISPV.network === XPChain.networks.testnet) {
     network_name = "testnet";
@@ -180,7 +182,7 @@ $(document).ready(function () {
 
       $.ajax({
         type: 'GET',
-        url: insight_api_url.val() + 'addr/' + addr + '/utxo',
+        url: insight_api_url.val() + 'addr/' + addr + '/utxoExt',
         dataType: 'json',
       }).done(function (json) {
         if (!Array.isArray(json)) {
@@ -190,6 +192,7 @@ $(document).ready(function () {
         var res = "";
         var amnt_total = 0;
         var amnt_nojust = 0;
+        var is_coinbase = false;
         var nojust_txidxs = [];
         var justamnt = parseInt(xpc_amount.val());
         if (mode === "justifier"){
@@ -198,7 +201,8 @@ $(document).ready(function () {
           }
         }
         for (i = 0; i < json.length; i++) {
-          if (json[i].confirmations >= window.ISPV.min_conf){
+          is_coinbase = json[i].isCoinBase;
+          if ((is_coinbase && json[i].confirmations >= COINBASE_MIN_CONF) || (!is_coinbase && json[i].confirmations >= window.ISPV.min_conf)){
             if (res !== "") { res += "\n"; }
             res += "UTXO #" + i + "\n" + JSON.stringify(json[i]) + "\n";
             if (mode === "justifier"){
@@ -227,7 +231,7 @@ $(document).ready(function () {
         if (mode === "justifier"){
           $.ajax({
             type: 'GET',
-            url: insight_api_url.val() + 'addr/' + addr_supp + '/utxo',
+            url: insight_api_url.val() + 'addr/' + addr_supp + '/utxoExt',
             dataType: 'json',
           }).done(function (json_s) {
             if (!Array.isArray(json_s)) {
@@ -236,7 +240,8 @@ $(document).ready(function () {
             var amnt_total_supp = 0;
             var tsputxo = [];
             for (i = 0; i < json_s.length; i++) {
-              if (json_s[i].confirmations >= window.ISPV.min_conf){
+              is_coinbase = json_s[i].isCoinBase;
+              if ((is_coinbase && json_s[i].confirmations >= COINBASE_MIN_CONF) || (!is_coinbase && json_s[i].confirmations >= window.ISPV.min_conf)){
                 tsputxo.push(json_s[i]);
                 amnt_total_supp += json_s[i].amount;                
               }
@@ -584,6 +589,9 @@ $(document).ready(function () {
           }else if(target_utxos[i].confirmations < window.ISPV.min_conf){
             alert("UTXO #" + target_utxo_indices[i] + ": confirmatioins less than minimum (" + window.ISPV.min_conf + ")");
             return false;
+          }else if(target_utxos[i].isCoinBase && target_utxos[i].confirmations < COINBASE_MIN_CONF){
+            alert("UTXO #" + target_utxo_indices[i] + ": confirmatioins less than coinbase mature (" + COINBASE_MIN_CONF + ")");
+            return false;
           }
           txin = txb.addInput(target_utxos[i].txid, target_utxos[i].vout, null, mywpkh.output);
           txins.push(txin);
@@ -625,7 +633,7 @@ $(document).ready(function () {
         built_tx = txb.build();
         actual_size = built_tx.virtualSize();
         if (window.ISPV.feetype === "per" && size !== actual_size) {
-          if (actual_size + 1 === size){
+          if (actual_size + 1 <= size){
             break;//1 mocha expensive...?
           }
           size = actual_size;
